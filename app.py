@@ -1,35 +1,58 @@
 from flask import Flask, request, jsonify
 import json
 import random
+import os
 
 app = Flask(__name__)
 
-with open("brain.json", "r", encoding="utf-8") as f:
-    brain = json.load(f)
+# Cria brain.json vazio se não existir
+if not os.path.exists("brain.json"):
+    with open("brain.json", "w", encoding="utf-8") as f:
+        json.dump({}, f)
 
-def responder(msg):
-    msg = msg.lower()
+# Funções para carregar e salvar o cérebro
+def carregar():
+    with open("brain.json", "r", encoding="utf-8") as f:
+        return json.load(f)
 
-    for item in brain:
-        for palavra in item["inputs"]:
-            if palavra in msg:
-                return random.choice(item["responses"])
+def salvar(data):
+    with open("brain.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
-    return "Não entendi muito bem 😅"
-
+# Endpoint de chat
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.json
-    mensagem = data["msg"]
+    msg = data.get("msg", "").lower()
 
-    resposta = responder(mensagem)
+    brain = carregar()
 
-    return jsonify({
-        "reply": resposta
-    })
+    if msg in brain:
+        resposta = random.choice(brain[msg])
+    else:
+        resposta = "Ainda não sei responder 😅"
+
+    return jsonify({"reply": resposta})
+
+# Endpoint para ensinar a IA
+@app.route("/learn", methods=["POST"])
+def learn():
+    data = request.json
+    pergunta = data["pergunta"].lower()
+    resposta = data["resposta"]
+
+    brain = carregar()
+    if pergunta not in brain:
+        brain[pergunta] = []
+
+    brain[pergunta].append(resposta)
+    salvar(brain)
+
+    return jsonify({"status": "aprendido"})
 
 @app.route("/")
 def home():
-    return "IA rodando!"
+    return "IA rodando no Render!"
 
-app.run(host="0.0.0.0", port=10000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
